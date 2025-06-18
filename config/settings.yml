@@ -39,7 +39,7 @@ audio:
 # Configurações dos modelos de visão computacional.
 vision:
   # --- Detecção de Objetos ---
-  yolo_model_path: "data/models/yolov5n.pt"
+  yolo_model_path: "data/models/yolov5nu.pt"
   confidence_threshold: 0.45 # Limiar de confiança para detecções do YOLO.
   
   # --- Estimativa de Profundidade ---

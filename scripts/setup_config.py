@@ -1,8 +1,9 @@
-# scripts/setup_config.py
+﻿# scripts/setup_config.py
 
 import os
 from pathlib import Path
 import yaml
+import sys
 
 def ask_question(prompt: str, default: str = None) -> str:
     """Faz uma pergunta ao usuário e retorna a resposta."""

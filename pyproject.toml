@@ -42,7 +42,6 @@ dependencies = [
     "timm",
     "opencv-python", # Use esta versão para ter a GUI do preview
     # "opencv-python-headless", # Use esta em servidores, sem GUI
-    "deepface",
     "pandas",
     "insightface",
     "onnxruntime",

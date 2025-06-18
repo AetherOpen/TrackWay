@@ -1,5 +1,6 @@
 ﻿*.pyc
 .vs/
 *.pt
+*.onnx
 __pycache__/
 
