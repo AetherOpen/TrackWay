@@ -4,10 +4,10 @@ from typing import Any, Dict, Optional
 
 # --- Imports dos Módulos do Projeto ---
 from ..config.settings import load_settings
-from ..services.llm.factory import LLMFactory
-from ..services.video.camera import Camera
-from ..services.audio.microphone import Microphone
-from ..services.audio.speaker import Speaker
+from ..services.llm.factory import get_llm_service as LLMFactory
+from ..services.video.camera import CameraService as Camera
+from ..services.audio.microphone import MicrophoneService as Microphone
+from ..services.audio.speaker import SpeakerService as Speaker
 from ..services.vision.object_detector import ObjectDetector
 from ..services.vision.depth_estimator import DepthEstimator
 from ..services.vision.face_recognizer import FaceRecognizer
