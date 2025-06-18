@@ -13,8 +13,30 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+# --- Função Auxiliar para Encontrar a Raiz do Projeto ---
+def find_project_root(marker_file: str = "pyproject.toml") -> Path:
+    """
+    Encontra a raiz do projeto de forma robusta, procurando por um arquivo marcador.
+
+    Args:
+        marker_file: O nome do arquivo que indica a raiz (ex: 'pyproject.toml' ou '.git').
+
+    Returns:
+        O caminho (Path) para o diretório raiz do projeto.
+    
+    Raises:
+        FileNotFoundError: Se o arquivo marcador não for encontrado.
+    """
+    current_path = Path(__file__).resolve()
+    for parent in current_path.parents:
+        if (parent / marker_file).exists():
+            logger.debug(f"Raiz do projeto encontrada em: {parent} (marcador: {marker_file})")
+            return parent
+    raise FileNotFoundError(f"Não foi possível encontrar a raiz do projeto. Arquivo marcador '{marker_file}' não localizado.")
+
+
 # --- Base Settings para ler variáveis de ambiente ---
-# Criamos uma classe base para que Pydantic saiba como procurar por .env files.
 class EnvBaseSettings(PydanticBaseSettings):
     class Config:
         env_file = '.env'
@@ -28,20 +50,18 @@ class UserSettings(BaseModel):
 
 # Gemini e OpenAI herdam de EnvBaseSettings para ler a API_KEY do ambiente
 class GeminiSettings(EnvBaseSettings):
-    api_key: str = Field(..., alias="GEMINI_API_KEY") # Pega a chave da env GEMINI_API_KEY
-    model: str = "models/gemini-2.0-flash-live-001"
+    api_key: str = Field(..., alias="GEMINI_API_KEY")
+    model: str = "models/gemini-1.5-flash-latest"
     temperature: float = 0.2
 
 class OpenAISettings(EnvBaseSettings):
-    api_key: str = Field(..., alias="OPENAI_API_KEY") # Pega a chave da env OPENAI_API_KEY
+    api_key: str = Field(..., alias="OPENAI_API_KEY")
     model: str = "gpt-4o"
     temperature: float = 0.7
 
 class LLMSettings(BaseModel):
     provider: str
     system_prompt_path: Path
-    
-    # As seções do provedor são opcionais no início
     gemini: Optional[GeminiSettings] = None
     openai: Optional[OpenAISettings] = None
 
@@ -53,15 +73,12 @@ class LLMSettings(BaseModel):
         if provider == 'gemini':
             if not self.gemini:
                 raise ValueError("Provedor é 'gemini', mas a seção 'gemini:' está faltando no settings.yml.")
-            if not self.gemini.api_key:
-                 raise ValueError("Provedor é 'gemini', mas a variável de ambiente 'GEMINI_API_KEY' não foi encontrada.")
+            # A validação da api_key já é feita pelo Pydantic ao ler a env var
         
         elif provider == 'openai':
             if not self.openai:
                 raise ValueError("Provedor é 'openai', mas a seção 'openai:' está faltando no settings.yml.")
-            if not self.openai.api_key:
-                 raise ValueError("Provedor é 'openai', mas a variável de ambiente 'OPENAI_API_KEY' não foi encontrada.")
-        
+
         else:
             raise ValueError(f"Provedor de LLM desconhecido: '{self.provider}'. Use 'gemini' ou 'openai'.")
             
@@ -80,13 +97,18 @@ class AudioSettings(BaseModel):
     channels: int = 1
 
 class VisionSettings(BaseModel):
+    """Configurações para os serviços de visão computacional."""
+    # --- Configurações Gerais de Visão ---
     yolo_model_path: Path
     confidence_threshold: float = Field(0.45, ge=0.1, le=1.0)
     midas_model_path: Path
-    deepface_db_path: Path
-    deepface_model_name: str
-    deepface_detector_backend: str
-    deepface_distance_metric: str
+
+    # --- CORREÇÃO: Configurações para Reconhecimento Facial (InsightFace) ---
+    # As chaves antigas 'deepface_*' foram substituídas para corresponder ao settings.yml.
+    face_model: str
+    face_model_path: Path
+    db_path: Path
+    recognition_threshold: float
 
 class PathSettings(BaseModel):
     data: Path
@@ -107,13 +129,14 @@ def load_settings(config_path: Path = Path("config/settings.yml")) -> AppSetting
     """
     Carrega, valida e retorna as configurações da aplicação.
     """
-    # Verifica se o caminho já é absoluto. Se não, constrói a partir da raiz do projeto.
+    # MELHORIA: Usa a função robusta para encontrar a raiz do projeto.
     if not config_path.is_absolute():
-        # AQUI ESTÁ A CORREÇÃO: mudamos de .parents[2] para .parents[3]
-        # Isso sobe de:
-        # settings.py -> .../config -> .../trackie -> .../src -> C:\TrackWay (Raiz)
-        project_root = Path(__file__).resolve().parents[3]
-        config_path = project_root / config_path
+        try:
+            project_root = find_project_root()
+            config_path = project_root / config_path
+        except FileNotFoundError as e:
+            logger.critical(e)
+            raise
 
     if not config_path.exists():
         logger.error(f"Arquivo de configuração não encontrado em: {config_path}")
@@ -124,6 +147,7 @@ def load_settings(config_path: Path = Path("config/settings.yml")) -> AppSetting
         with open(config_path, 'r', encoding='utf-8') as f:
             config_data = yaml.safe_load(f)
         
+        # Valida a estrutura dos dados carregados usando o modelo Pydantic
         settings = AppSettings(**config_data)
         
         logger.info("Configurações carregadas e validadas com sucesso.")
@@ -133,15 +157,17 @@ def load_settings(config_path: Path = Path("config/settings.yml")) -> AppSetting
         logger.critical(f"Erro de sintaxe no arquivo de configuração YAML: {e}")
         raise
     except ValidationError as e:
-        logger.critical(f"Erro de validação nas configurações: {e}")
+        logger.critical(f"Erro de validação nas configurações. Verifique se 'settings.yml' corresponde à estrutura em 'settings.py'. Erro: {e}")
         raise
     except Exception as e:
         logger.critical(f"Erro inesperado ao carregar as configurações: {e}")
         raise
 
 # --- Instância Global ---
+# Tenta carregar as configurações na inicialização do módulo.
+# A aplicação não pode continuar se as configurações falharem.
 try:
     settings = load_settings()
-except (FileNotFoundError, ValueError) as e:
-    logger.critical(f"Não foi possível carregar as configurações. Encerrando. Erro: {e}")
-    settings = None
+except (FileNotFoundError, ValueError, ValidationError) as e:
+    logger.critical(f"FATAL: Não foi possível carregar as configurações. A aplicação não pode continuar. Erro: {e}")
+    settings = None # Deixa explícito que as configurações falharam

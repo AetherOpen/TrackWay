@@ -44,7 +44,7 @@ class ToolHandlers:
             return {"result": "Desculpe, não consigo ver nada no momento para salvar o rosto."}
 
         # Delega a lógica de salvamento para o serviço de reconhecimento facial
-        success = await asyncio.to_thread(self.face_recognizer.save_face, frame, person_name)
+        success = await asyncio.to_thread(self.face_recognizer.add_known_face, person_name, frame)
         
         if success:
             result_message = f"O rosto de {person_name} foi salvo com sucesso."
