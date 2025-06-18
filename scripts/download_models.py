@@ -37,9 +37,10 @@ MODEL_URLS = {
     
     # --- Modelos de Reconhecimento Facial (InsightFace) ---
     # O InsightFace precisa de um modelo de DETECÇÃO e um de RECONHECIMENTO.
-    "det_10g.onnx": "https://huggingface.co/AIT-Disrupt/insightface/resolve/main/models/antelopev2/det_10g.onnx",
-    "w600k_mbf.onnx": "https://huggingface.co/AIT-Disrupt/insightface/resolve/main/models/antelopev2/w600k_mbf.onnx", # MobileFaceNet
-    "w600k_r50.onnx": "https://huggingface.co/AIT-Disrupt/insightface/resolve/main/models/antelopev2/w600k_r50.onnx",   # ResNet50
+    "det_10g.onnx": "https://huggingface.co/Kuvshin/kuvshin8/resolve/main/insightface/models/buffalo_l/det_10g.onnx",
+    "w600k_mbf.onnx": "https://huggingface.co/deepghs/insightface/resolve/main/buffalo_s/w600k_mbf.onnx",
+    "w600k_r50.onnx": "https://huggingface.co/Kuvshin/kuvshin8/resolve/main/insightface/models/buffalo_l/w600k_r50.onnx"
+
 }
 
 # --- Mapeamento de Nomes Amigáveis para Arquivos de Modelo (InsightFace) ---
