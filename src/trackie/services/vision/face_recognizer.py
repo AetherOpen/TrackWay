@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from insightface.app import FaceAnalysis
 
-from src.trackie.utils.logger import logger
+from ...utils.logger import get_logger as logger
 
 class FaceRecognizerService:
     """
