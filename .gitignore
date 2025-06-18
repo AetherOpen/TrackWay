@@ -1,0 +1,5 @@
+﻿*.pyc
+.vs/
+*.pt
+__pycache__/
+

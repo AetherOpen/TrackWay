@@ -1,0 +1,89 @@
+﻿# pyproject.toml
+
+# Seção 1: Build System (Obrigatória)
+# Informa ao pip qual ferramenta usar para construir o pacote.
+# 'setuptools' é a escolha mais comum e robusta.
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# Seção 2: Metadados do Projeto (PEP 621)
+# Substitui a maior parte do que estaria em um setup.py.
+[project]
+name = "trackie-intelligence"
+version = "0.1.0"
+authors = [
+  { name="Aether", email="your-email@example.com" },
+]
+description = "Um assistente de IA multimodal que usa visão e áudio para interagir com o ambiente."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file="LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+# Seção 3: Dependências Principais
+# Esta seção substitui o requirements.txt para a aplicação principal.
+dependencies = [
+    "google-genai",
+    "ultralytics",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "timm",
+    "opencv-python", # Use esta versão para ter a GUI do preview
+    # "opencv-python-headless", # Use esta em servidores, sem GUI
+    "deepface",
+    "pandas",
+    "pyaudio",
+    "playsound",
+    "pydantic",
+    "pydantic-settings",
+    "pyyaml",
+    "python-dotenv",
+    "requests",
+    "tqdm",
+]
+
+# Seção 4: Dependências Opcionais
+# Permite instalar grupos de dependências para tarefas específicas.
+# Ex: pip install .[dev,lint]
+[project.optional-dependencies]
+dev = [
+    "jupyterlab",
+    "matplotlib",
+]
+lint = [
+    "ruff", # Um linter e formatter extremamente rápido
+]
+test = [
+    "pytest",
+]
+
+# Seção 5: Pontos de Entrada (Scripts)
+# Permite criar comandos executáveis no terminal após a instalação.
+[project.scripts]
+trackie = "trackie.main:main"
+
+# Seção 6: Configuração de Ferramentas
+# Exemplo de como configurar o linter 'ruff' diretamente aqui.
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "UP", # pyupgrade
+]
