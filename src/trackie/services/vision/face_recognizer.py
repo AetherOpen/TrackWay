@@ -6,7 +6,7 @@ from insightface.app import FaceAnalysis
 
 from ...utils.logger import get_logger as logger
 
-class FaceRecognizerService:
+class FaceRecognizer:
     """
     Serviço para reconhecimento facial usando a biblioteca InsightFace.
 

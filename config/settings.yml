@@ -1,6 +1,4 @@
-﻿# config/settings.yml
-
-# Nome do usuário para uma experiência personalizada.
+﻿# Nome do usuário para uma experiência personalizada.
 # Será usado no prompt para o LLM.
 user:
   name: "Aether"
@@ -14,7 +12,7 @@ llm:
   gemini:
     # A chave será lida da variável de ambiente chamada GEMINI_API_KEY.
     # Certifique-se de definir esta variável no seu sistema ou em um arquivo .env.
-    api_key: "${GEMINI_API_KEY}" 
+    api_key: "${GEMINI_API_KEY}"  
     model: "models/gemini-2.0-flash-live-001"
     temperature: 0.2
 
@@ -40,16 +38,22 @@ audio:
 
 # Configurações dos modelos de visão computacional.
 vision:
-  yolo_model_path: "data/models/yolov5nu.pt"
+  # --- Detecção de Objetos ---
+  yolo_model_path: "data/models/yolov5n.pt"
   confidence_threshold: 0.45 # Limiar de confiança para detecções do YOLO.
   
-  midas_model_path: "data/models/dpt_levit_224.pt" # Usaremos um caminho agora
+  # --- Estimativa de Profundidade ---
+  midas_model_path: "data/models/dpt_levit_224.pt"
 
-  db_path: "data/user_data/known_faces" # Onde os rostos salvos ficarão.
-  recognition_threshold: 0.5
+  # --- Reconhecimento Facial (InsightFace) ---
+  face_model: "MobileFaceNet"                 # Nome do modelo a ser carregado. Deve corresponder a uma chave em INSIGHTFACE_MODELS no script de download.
+  face_model_path: "data/models/insightface"  # Pasta onde os modelos .onnx do InsightFace serão baixados/lidos.
+  db_path: "data/user_data/known_faces"       # Pasta para salvar os embeddings de rostos conhecidos.
+  recognition_threshold: 0.5                  # Limiar de similaridade de cosseno (padrão do InsightFace). Valores > 0.4 são considerados similares.
 
 # Caminhos gerais para recursos da aplicação.
 paths:
   data: "data" # Pasta raiz para dados.
   tool_definitions: "config/tool_definitions.json" # Definições das ferramentas.
   danger_sound: "data/assets/sounds/trackie_danger.wav" # Som de alerta.
+
