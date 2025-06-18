@@ -1,138 +1,163 @@
-﻿# src/trackie/services/vision/face_recognizer.py
-
+﻿import logging
 import os
-from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
-import pandas as pd
-import datetime
-from ...utils.logger import get_logger
-import datetime
-logger = get_logger(__name__)
+from insightface.app import FaceAnalysis
 
-# Importa DeepFace dinamicamente para lidar com erros de instalação
-try:
-    from deepface import DeepFace
-except ImportError:
-    logger.error("A biblioteca 'deepface' não está instalada. O reconhecimento facial está desabilitado.")
-    DeepFace = None
+from src.trackie.utils.logger import logger
 
-class FaceRecognizer:
+class FaceRecognizerService:
     """
-    Encapsula as funcionalidades de reconhecimento e gerenciamento de rostos
-    usando a biblioteca DeepFace.
+    Serviço para reconhecimento facial usando a biblioteca InsightFace.
+
+    Esta classe carrega um modelo de análise facial, indexa um banco de dados de rostos conhecidos
+    e pode reconhecer esses rostos em um determinado frame de imagem.
     """
-    def __init__(self, settings: Dict[str, Any]):
-        if not DeepFace:
-            raise ImportError("DeepFace não pôde ser importado. O serviço não pode ser inicializado.")
 
-        vision_settings = settings.get("vision", {})
-        self.db_path = vision_settings.get("deepface_db_path")
-        self.model_name = vision_settings.get("deepface_model_name", "VGG-Face")
-        self.detector_backend = vision_settings.get("deepface_detector_backend", "opencv")
-        self.distance_metric = vision_settings.get("deepface_distance_metric", "cosine")
+    def __init__(self, db_path: str, recognition_threshold: float):
+        """
+        Inicializa o serviço de reconhecimento facial.
 
-        self._prepare_database()
+        Args:
+            db_path (str): Caminho para o diretório contendo imagens de rostos conhecidos.
+            recognition_threshold (float): Limiar de similaridade para considerar um rosto reconhecido.
+        """
+        self.db_path = db_path
+        self.recognition_threshold = recognition_threshold
+        self.known_faces = []
 
-    def _prepare_database(self):
-        """Garante que o diretório do banco de dados exista e pré-carrega os modelos."""
-        logger.info("Preparando o serviço de reconhecimento facial...")
+        # Inicializa o modelo FaceAnalysis. Ele baixará os modelos necessários na primeira execução.
+        # Usamos 'buffalo_l' que é um pacote completo com detecção, alinhamento e reconhecimento (MobileFaceNet).
+        logger.info("Inicializando o modelo InsightFace...")
+        try:
+            self.app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+            self.app.prepare(ctx_id=0, det_size=(640, 640))
+            logger.info("Modelo InsightFace carregado com sucesso.")
+        except Exception as e:
+            logger.error(f"Falha ao carregar o modelo InsightFace: {e}")
+            raise
+
+        # Indexa os rostos conhecidos que já existem no banco de dados
+        self._index_known_faces()
+
+    def _index_known_faces(self):
+        """
+        Lê todas as imagens do banco de dados de rostos, extrai seus embeddings
+        e os armazena em memória para comparação rápida.
+        """
+        logger.info(f"Indexando rostos conhecidos de '{self.db_path}'...")
         if not os.path.exists(self.db_path):
+            logger.warning(f"Diretório do banco de dados de rostos não encontrado: '{self.db_path}'. Criando...")
             os.makedirs(self.db_path)
-            logger.info(f"Diretório de banco de dados de rostos criado em: {self.db_path}")
+
+        for filename in os.listdir(self.db_path):
+            if filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                person_name = os.path.splitext(filename)[0]
+                filepath = os.path.join(self.db_path, filename)
+                
+                try:
+                    img = cv2.imread(filepath)
+                    if img is None:
+                        logger.warning(f"Não foi possível ler a imagem: {filepath}")
+                        continue
+
+                    faces = self.app.get(img)
+                    if faces and len(faces) == 1:
+                        embedding = faces[0].normed_embedding
+                        self.known_faces.append({"name": person_name, "embedding": embedding})
+                        logger.info(f"Rosto de '{person_name}' indexado.")
+                    elif not faces:
+                        logger.warning(f"Nenhum rosto encontrado na imagem de '{person_name}' em {filepath}.")
+                    else:
+                        logger.warning(f"Múltiplos rostos encontrados na imagem de '{person_name}' em {filepath}. Usando apenas o primeiro.")
+                        embedding = faces[0].normed_embedding
+                        self.known_faces.append({"name": person_name, "embedding": embedding})
+
+
+                except Exception as e:
+                    logger.error(f"Erro ao processar o rosto de '{person_name}' em {filepath}: {e}")
         
-        try:
-            logger.info("Pré-carregando modelos DeepFace...")
-            dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-            DeepFace.analyze(img_path=dummy_frame, actions=['emotion'], enforce_detection=False)
-            logger.info("Modelos DeepFace pré-carregados.")
-        except Exception as e:
-            logger.warning(f"AVISO: Erro ao pré-carregar modelos DeepFace: {e}")
+        logger.info(f"Indexação concluída. {len(self.known_faces)} rostos conhecidos carregados.")
 
-    def identify_faces(self, frame: np.ndarray) -> List[pd.DataFrame]:
+    def recognize_faces(self, bgr_frame: np.ndarray) -> list[dict]:
         """
-        Busca por rostos conhecidos em um frame.
+        Detecta e reconhece rostos em um frame.
 
         Args:
-            frame: O frame da imagem em formato NumPy array (BGR).
+            bgr_frame (np.ndarray): O frame da câmera no formato BGR.
 
         Returns:
-            Uma lista de DataFrames do Pandas, onde cada DataFrame contém as
-            correspondências para um rosto detectado no frame. Retorna lista vazia se nada for encontrado.
+            list[dict]: Uma lista de dicionários, onde cada um contém o nome
+                        e a caixa delimitadora (bbox) do rosto reconhecido.
+                        Ex: [{'name': 'John', 'box': (x1, y1, x2, y2)}]
         """
-        try:
-            dfs = DeepFace.find(
-                img_path=frame,
-                db_path=self.db_path,
-                model_name=self.model_name,
-                detector_backend=self.detector_backend,
-                distance_metric=self.distance_metric,
-                enforce_detection=True,
-                silent=True
-            )
-            return dfs
-        except ValueError: # Erro comum quando nenhum rosto é detectado no frame de entrada
-            logger.debug("Nenhum rosto detectado no frame para identificação.")
-            return []
-        except Exception as e:
-            logger.error(f"Erro durante a identificação de rostos com DeepFace: {e}")
+        if not self.known_faces:
             return []
 
-    def save_face(self, frame: np.ndarray, person_name: str) -> bool:
+        recognized_people = []
+        try:
+            faces_in_frame = self.app.get(bgr_frame)
+        except Exception as e:
+            logger.error(f"Erro ao obter rostos do frame: {e}")
+            return []
+
+        for face in faces_in_frame:
+            current_embedding = face.normed_embedding
+            best_match_name = None
+            highest_similarity = -1
+
+            # Compara o rosto atual com todos os rostos conhecidos
+            for known_face in self.known_faces:
+                # Usa produto escalar para similaridade de cosseno, pois os vetores são normalizados
+                similarity = np.dot(current_embedding, known_face["embedding"])
+                
+                if similarity > highest_similarity:
+                    highest_similarity = similarity
+                    best_match_name = known_face["name"]
+            
+            # Se a melhor correspondência estiver acima do nosso limiar, consideramos reconhecida
+            if highest_similarity > self.recognition_threshold:
+                box = face.bbox.astype(int)
+                recognized_people.append({"name": best_match_name, "box": tuple(box)})
+                logger.debug(f"Rosto reconhecido: {best_match_name} com similaridade {highest_similarity:.2f}")
+
+        return recognized_people
+
+    def add_known_face(self, person_name: str, bgr_frame: np.ndarray) -> bool:
         """
-        Extrai o rosto mais proeminente de um frame e o salva no banco de dados.
+        Salva um novo rosto conhecido no banco de dados e o indexa em tempo real.
 
         Args:
-            frame: O frame da imagem em formato NumPy array (BGR).
-            person_name: O nome a ser associado ao rosto.
+            person_name (str): O nome da pessoa a ser salva.
+            bgr_frame (np.ndarray): Um frame contendo o rosto da pessoa.
 
         Returns:
-            True se o rosto foi salvo com sucesso, False caso contrário.
+            bool: True se o rosto foi adicionado com sucesso, False caso contrário.
         """
         try:
-            # Extrai o rosto (DeepFace lança ValueError se não encontrar)
-            extracted_faces = DeepFace.extract_faces(
-                img_path=frame,
-                detector_backend=self.detector_backend,
-                enforce_detection=True
-            )
-            
-            # Pega o primeiro rosto (geralmente o maior)
-            face_data = extracted_faces[0]['facial_area']
-            x, y, w, h = face_data['x'], face_data['y'], face_data['w'], face_data['h']
-            face_image_cropped = frame[y:y+h, x:x+w]
-
-            # Cria o diretório para a pessoa se não existir
-            person_dir = os.path.join(self.db_path, person_name)
-            os.makedirs(person_dir, exist_ok=True)
-
-            # Salva a imagem do rosto
-            timestamp = int(datetime.now().timestamp())
-            image_path = os.path.join(person_dir, f"{person_name}_{timestamp}.jpg")
-            
-            success = cv2.imwrite(image_path, face_image_cropped)
-            if success:
-                logger.info(f"Rosto de '{person_name}' salvo em: {image_path}")
-                # Força a reconstrução do cache de representações
-                self._clear_representations_cache()
-                return True
-            else:
-                logger.error(f"Falha ao salvar a imagem do rosto em {image_path}")
+            faces = self.app.get(bgr_frame)
+            if not faces:
+                logger.error(f"Nenhum rosto detectado na imagem para salvar '{person_name}'.")
                 return False
+            
+            if len(faces) > 1:
+                logger.warning(f"Múltiplos rostos detectados. Salvando o maior deles para '{person_name}'.")
+                # Lógica para pegar o maior rosto pela área do bbox
+                faces.sort(key=lambda face: (face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]), reverse=True)
 
-        except ValueError:
-            logger.warning(f"Nenhum rosto detectado no frame para salvar para '{person_name}'.")
-            return False
+            face_to_save = faces[0]
+            embedding = face_to_save.normed_embedding
+
+            # Salva a imagem no disco
+            filename = f"{person_name}.jpg"
+            filepath = os.path.join(self.db_path, filename)
+            cv2.imwrite(filepath, bgr_frame)
+            
+            # Adiciona ao índice em memória
+            self.known_faces.append({"name": person_name, "embedding": embedding})
+            
+            logger.info(f"Novo rosto '{person_name}' salvo em {filepath} e adicionado ao índice.")
+            return True
         except Exception as e:
-            logger.error(f"Erro ao salvar rosto para '{person_name}': {e}")
+            logger.error(f"Falha ao adicionar novo rosto conhecido '{person_name}': {e}")
             return False
-
-    def _clear_representations_cache(self):
-        """Remove o arquivo .pkl de representações para forçar a recriação."""
-        pkl_path = os.path.join(self.db_path, f"representations_{self.model_name.lower()}.pkl")
-        if os.path.exists(pkl_path):
-            try:
-                os.remove(pkl_path)
-                logger.info("Cache de representações do DeepFace limpo para atualização.")
-            except OSError as e:
-                logger.warning(f"Não foi possível remover o cache de representações: {e}")

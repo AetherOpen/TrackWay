@@ -54,32 +54,31 @@ class ToolHandlers:
         return {"result": result_message}
 
     async def handle_identify_person_in_front(self) -> Dict[str, Any]:
-        """Lida com a lógica de identificar uma pessoa."""
-        logger.info("Executando 'identify_person_in_front'")
+        """
+        Identifica uma pessoa no campo de visão da câmera.
+        Retorna o nome da pessoa se reconhecida, ou uma mensagem de falha.
+        """
+        if not self.shared_state.latest_bgr_frame is not None:
+            return "Não consegui obter uma imagem da câmera para análise."
 
-        async with self.shared_state.frame_lock:
-            frame = self.shared_state.latest_bgr_frame
+        frame = self.shared_state.latest_bgr_frame
         
-        if frame is None:
-            return {"result": "Desculpe, não consigo ver nada no momento para identificar alguém."}
+        # O método agora retorna uma lista de dicts
+        recognized_faces = self.face_recognizer.recognize_faces(frame)
 
-        # Delega a identificação para o serviço
-        results_dfs = await asyncio.to_thread(self.face_recognizer.identify_faces, frame)
-
-        if not results_dfs:
-            return {"result": "Não consegui reconhecer ninguém conhecido ou não detectei um rosto claro."}
+        if not recognized_faces:
+            return "Não reconheci ninguém que eu conheça no momento."
         
-        # TODO: A lógica de processamento do DataFrame para encontrar a melhor correspondência
-        # e verificar o limiar de confiança também pode ser movida para `processing/calculations.py`.
-        best_match_df = results_dfs[0]
-        if best_match_df.empty:
-            return {"result": "Detectei um rosto, mas não corresponde a ninguém no banco de dados."}
-
-        best_match = best_match_df.iloc[0]
-        identity_path = best_match['identity']
-        person_name = os.path.basename(os.path.dirname(str(identity_path)))
+        # Pega o nome do primeiro rosto reconhecido na lista
+        # O novo formato é muito mais simples de acessar
+        name = recognized_faces[0]["name"].replace("_", " ").title()
         
-        return {"result": f"A pessoa na sua frente parece ser {person_name.replace('_', ' ')}."}
+        if len(recognized_faces) > 1:
+            # Se houver mais de uma pessoa, podemos mencioná-las
+            # (ou apenas focar na primeira, como estamos fazendo agora)
+            return f"Eu vejo {name} e outras pessoas."
+
+        return f"A pessoa na sua frente é {name}."
 
     async def handle_locate_object(self, object_name: str) -> Dict[str, Any]:
         """Lida com a lógica de localizar um objeto e estimar sua distância."""

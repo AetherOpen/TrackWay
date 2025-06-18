@@ -44,6 +44,8 @@ dependencies = [
     # "opencv-python-headless", # Use esta em servidores, sem GUI
     "deepface",
     "pandas",
+    "insightface",
+    "onnxruntime",
     "pyaudio",
     "playsound",
     "pydantic",

@@ -45,10 +45,8 @@ vision:
   
   midas_model_path: "data/models/dpt_levit_224.pt" # Usaremos um caminho agora
 
-  deepface_db_path: "data/user_data/known_faces" # Onde os rostos salvos ficarão.
-  deepface_model_name: "FaceNet"
-  deepface_detector_backend: "opencv"
-  deepface_distance_metric: "cosine"
+  db_path: "data/user_data/known_faces" # Onde os rostos salvos ficarão.
+  recognition_threshold: 0.5
 
 # Caminhos gerais para recursos da aplicação.
 paths:
